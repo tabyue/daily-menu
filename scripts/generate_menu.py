@@ -220,10 +220,19 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
                 {"role": "user", "content": prompt},
             ],
             temperature=0.8,
-            max_tokens=4000,
+            max_tokens=6000,
             )
 
-            content = response.choices[0].message.content.strip()
+            # 检查空响应
+            msg = response.choices[0].message if response.choices else None
+            if not msg or not msg.content:
+                print(f"  ERROR: AI returned empty response")
+                if attempt < max_retries:
+                    time.sleep(10)
+                    continue
+                return None
+
+            content = msg.content.strip()
 
             # 清理可能的 markdown 代码块标记
             if content.startswith("```"):
