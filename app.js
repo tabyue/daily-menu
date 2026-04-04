@@ -1,6 +1,6 @@
 /**
  * 每日家庭食谱 - 核心 JS
- * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看、换一个
+ * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看
  */
 
 (function () {
@@ -31,10 +31,6 @@
   let currentDate = formatDate(today);
   let menuCache = {};
 
-  // 记录每道菜当前使用的是哪个备选（主菜=0, 备选1=1, 备选2=2...）
-  // key: "dateStr|mealKey|idx"  value: alternativeIndex
-  let swapState = {};
-
   // ===== 初始化 =====
   function init() {
     const season = getSeason(today.getMonth() + 1);
@@ -46,39 +42,9 @@
       document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
     }
 
-    loadSwapState();
     renderDateTabs();
     bindEvents();
     loadMenu(currentDate);
-  }
-
-  // ===== 换菜状态持久化（localStorage）=====
-  function loadSwapState() {
-    try {
-      const saved = localStorage.getItem('dailyMenu_swapState');
-      if (saved) swapState = JSON.parse(saved);
-    } catch (e) { /* ignore */ }
-  }
-
-  function saveSwapState() {
-    try {
-      localStorage.setItem('dailyMenu_swapState', JSON.stringify(swapState));
-    } catch (e) { /* ignore */ }
-  }
-
-  function getSwapKey(dateStr, mealKey, idx) {
-    return `${dateStr}|${mealKey}|${idx}`;
-  }
-
-  // 获取当前应该展示的菜品（考虑换菜状态）
-  function getCurrentDish(dateStr, mealKey, idx, dish) {
-    const key = getSwapKey(dateStr, mealKey, idx);
-    const altIdx = swapState[key] || 0;
-    if (altIdx === 0 || !dish.alternatives || !dish.alternatives[altIdx - 1]) {
-      return dish;
-    }
-    // 返回备选菜，但保留 alternatives 引用
-    return { ...dish.alternatives[altIdx - 1], alternatives: dish.alternatives, _originalName: dish.name };
   }
 
   // ===== 日期标签 =====
@@ -157,11 +123,11 @@
     }
 
     // 各餐
-    renderMealSection('breakfastBody', 'breakfast', data.breakfast);
-    renderMealSection('lunchBody', 'lunch', data.lunch);
-    renderMealSection('dinnerBody', 'dinner', data.dinner);
-    renderMealSection('fruitBody', 'fruit', data.fruit);
-    renderMealSection('snackBody', 'snack', data.snack);
+    renderMealSection('breakfastBody', data.breakfast);
+    renderMealSection('lunchBody', data.lunch);
+    renderMealSection('dinnerBody', data.dinner);
+    renderMealSection('fruitBody', data.fruit);
+    renderMealSection('snackBody', data.snack);
 
     // 小贴士
     if (data.tips) {
@@ -179,73 +145,27 @@
     });
   }
 
-  function renderMealSection(containerId, mealKey, dishes) {
+  function renderMealSection(containerId, dishes) {
     const container = $(`#${containerId}`);
     if (!dishes || dishes.length === 0) {
       container.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">暂无数据</p>';
       return;
     }
 
-    container.innerHTML = dishes.map((dish, idx) => {
-      const currentDish = getCurrentDish(currentDate, mealKey, idx, dish);
-      const hasAlts = dish.alternatives && dish.alternatives.length > 0;
-      const swapKey = getSwapKey(currentDate, mealKey, idx);
-      const isSwapped = (swapState[swapKey] || 0) > 0;
-
-      return `
-      <div class="dish-item${isSwapped ? ' dish-swapped' : ''}" id="dish-${mealKey}-${idx}">
-        <div class="dish-emoji">${currentDish.emoji || '🍽️'}</div>
+    container.innerHTML = dishes.map((dish, idx) => `
+      <div class="dish-item">
+        <div class="dish-emoji">${dish.emoji || '🍽️'}</div>
         <div class="dish-info">
           <div class="dish-name">
-            ${currentDish.name}
-            ${(currentDish.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
-            ${isSwapped ? '<span class="dish-tag swapped">已换</span>' : ''}
+            ${dish.name}
+            ${(dish.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
           </div>
-          ${currentDish.desc ? `<div class="dish-desc">${currentDish.desc}</div>` : ''}
-          ${currentDish.amount ? `<div class="dish-amount">👨‍👦 ${currentDish.amount}</div>` : ''}
+          ${dish.desc ? `<div class="dish-desc">${dish.desc}</div>` : ''}
+          ${dish.amount ? `<div class="dish-amount">👨‍👦 ${dish.amount}</div>` : ''}
         </div>
-        <div class="dish-actions">
-          ${hasAlts ? `<button class="dish-swap-btn" data-meal="${mealKey}" data-idx="${idx}">换</button>` : ''}
-          ${currentDish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // ===== 换一个 =====
-  function swapDish(mealKey, idx) {
-    const data = menuCache[currentDate];
-    if (!data) return;
-    const dishes = data[mealKey];
-    if (!dishes || !dishes[idx]) return;
-
-    const dish = dishes[idx];
-    if (!dish.alternatives || dish.alternatives.length === 0) return;
-
-    const swapKey = getSwapKey(currentDate, mealKey, idx);
-    const currentAlt = swapState[swapKey] || 0;
-    const totalOptions = dish.alternatives.length + 1; // 原菜 + 备选
-    const nextAlt = (currentAlt + 1) % totalOptions;
-
-    swapState[swapKey] = nextAlt;
-    saveSwapState();
-
-    // 重新渲染该餐段
-    const containerIdMap = {
-      breakfast: 'breakfastBody',
-      lunch: 'lunchBody',
-      dinner: 'dinnerBody',
-      fruit: 'fruitBody',
-      snack: 'snackBody',
-    };
-    renderMealSection(containerIdMap[mealKey], mealKey, dishes);
-
-    // 给被换的菜一个高亮动画
-    const dishEl = $(`#dish-${mealKey}-${idx}`);
-    if (dishEl) {
-      dishEl.classList.add('dish-swap-anim');
-      setTimeout(() => dishEl.classList.remove('dish-swap-anim'), 500);
-    }
+        ${dish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
+      </div>
+    `).join('');
   }
 
   // ===== 做法弹窗 =====
@@ -265,28 +185,26 @@
     if (!dishes || !dishes[idx]) return;
 
     const dish = dishes[idx];
-    const currentDish = getCurrentDish(currentDate, mealKey, idx, dish);
-    const recipe = currentDish.recipe;
-    if (!recipe) return;
+    if (!dish.recipe) return;
 
-    $('#recipeTitle').textContent = `📝 ${currentDish.name} - 做法`;
+    $('#recipeTitle').textContent = `📝 ${dish.name} - 做法`;
     $('#recipeBody').innerHTML = `
-      ${recipe.ingredients ? `
+      ${dish.recipe.ingredients ? `
         <div class="recipe-section">
           <h4>🥬 食材准备</h4>
-          <ul>${recipe.ingredients.map(i => `<li>${i}</li>`).join('')}</ul>
+          <ul>${dish.recipe.ingredients.map(i => `<li>${i}</li>`).join('')}</ul>
         </div>
       ` : ''}
-      ${recipe.steps ? `
+      ${dish.recipe.steps ? `
         <div class="recipe-section">
           <h4>👩‍🍳 烹饪步骤</h4>
-          <ul class="recipe-steps">${recipe.steps.map(s => `<li>${s}</li>`).join('')}</ul>
+          <ul class="recipe-steps">${dish.recipe.steps.map(s => `<li>${s}</li>`).join('')}</ul>
         </div>
       ` : ''}
-      ${recipe.tips ? `
+      ${dish.recipe.tips ? `
         <div class="recipe-section">
           <h4>💡 小窍门</h4>
-          <ul>${recipe.tips.map(t => `<li>${t}</li>`).join('')}</ul>
+          <ul>${dish.recipe.tips.map(t => `<li>${t}</li>`).join('')}</ul>
         </div>
       ` : ''}
     `;
@@ -324,19 +242,11 @@
 
   // ===== 事件绑定 =====
   function bindEvents() {
-    // 菜品区域事件委托
+    // 做法按钮（事件委托）
     $('#mealsContainer').addEventListener('click', (e) => {
-      // 做法按钮
-      const recipeBtn = e.target.closest('.dish-recipe-btn');
-      if (recipeBtn) {
-        showRecipe(recipeBtn.dataset.meal, parseInt(recipeBtn.dataset.idx));
-        return;
-      }
-      // 换一个按钮
-      const swapBtn = e.target.closest('.dish-swap-btn');
-      if (swapBtn) {
-        swapDish(swapBtn.dataset.meal, parseInt(swapBtn.dataset.idx));
-        return;
+      const btn = e.target.closest('.dish-recipe-btn');
+      if (btn) {
+        showRecipe(btn.dataset.meal, parseInt(btn.dataset.idx));
       }
     });
 

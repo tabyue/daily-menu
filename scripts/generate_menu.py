@@ -101,9 +101,6 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
                 for meal_key in ["breakfast", "lunch", "dinner"]:
                     for dish in menu.get(meal_key, []):
                         dishes.append(dish.get("name", ""))
-                        # 也收集备选菜名
-                        for alt in dish.get("alternatives", []):
-                            dishes.append(alt.get("name", ""))
                 recent_dishes += f"- {d}: {', '.join(dishes)}\n"
             except Exception:
                 pass
@@ -146,13 +143,6 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 
 {recent_dishes}
 
-## 换菜备选要求（重要！）
-- 早餐、午餐、晚餐中的每道菜，都需要额外提供 **2个备选替换方案**
-- 备选菜必须与原菜在营养角色上相近（如：蛋白质菜换蛋白质菜，蔬菜换蔬菜，主食换主食）
-- 备选菜不能与当天其他菜重复
-- 备选菜放在每道菜的 "alternatives" 字段中
-- 水果和零食不需要备选
-
 ## 输出格式要求
 请严格按照以下 JSON 格式输出，不要输出任何 JSON 以外的内容：
 
@@ -172,25 +162,7 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
         "ingredients": ["食材1及用量", "食材2及用量"],
         "steps": ["步骤1", "步骤2", "步骤3"],
         "tips": ["小窍门1"]
-      }},
-      "alternatives": [
-        {{
-          "name": "备选菜名1",
-          "emoji": "emoji",
-          "desc": "描述",
-          "amount": "用量",
-          "tags": [...],
-          "recipe": {{ "ingredients": [...], "steps": [...], "tips": [...] }}
-        }},
-        {{
-          "name": "备选菜名2",
-          "emoji": "emoji",
-          "desc": "描述",
-          "amount": "用量",
-          "tags": [...],
-          "recipe": {{ "ingredients": [...], "steps": [...], "tips": [...] }}
-        }}
-      ]
+      }}
     }}
   ],
   "lunch": [...],
@@ -222,12 +194,8 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 注意事项：
 1. 每个 recipe 如果是简单食物（如白煮蛋、牛奶等）可以设为 null
 2. tags 的 type 只能是以下之一：staple protein veggie seasonal spicy sweet sour
-3. alternatives 每个菜提供2个备选，格式和主菜完全一致（含 recipe）
-4. 简单食物（白煮蛋、牛奶等）的 alternatives 可以为空数组 []
-5. 水果和零食不需要 alternatives 字段
-6. 备选菜要和原菜营养角色一致，且不与当日其他菜重复
-7. 做法步骤要详细实用，新手也能看懂
-8. 食材用量要精确到克/个/勺
+3. 做法步骤要详细实用，新手也能看懂
+4. 食材用量要精确到克/个/勺
 
 请直接输出 JSON，不要包含 ```json 标记或其他文本。"""
 
@@ -246,13 +214,13 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
                 model=model,
                 messages=[
                     {
-                        "role": "system",
-                        "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。每道菜必须包含alternatives备选字段。",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.8,
-                max_tokens=8000,
+                    "role": "system",
+                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.8,
+            max_tokens=4000,
             )
 
             content = response.choices[0].message.content.strip()
