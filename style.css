@@ -452,8 +452,15 @@ body {
   margin-top: 2px;
 }
 
-.dish-recipe-btn {
+.dish-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: center;
   flex-shrink: 0;
+}
+
+.dish-recipe-btn {
   padding: 6px 12px;
   border: 1px solid var(--primary);
   border-radius: 8px;
@@ -462,7 +469,6 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  align-self: center;
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -470,6 +476,51 @@ body {
 .dish-recipe-btn:active {
   background: var(--primary);
   color: white;
+}
+
+.dish-swap-btn {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.dish-swap-btn:active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  transform: rotate(180deg);
+}
+
+.dish-tag.swapped {
+  background: #E8F5E9;
+  color: #2E7D32;
+  font-size: 0.6rem;
+}
+
+.dish-swapped {
+  background: rgba(76, 175, 80, 0.04);
+  border-radius: 8px;
+  margin: 0 -8px;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+.dish-swap-anim {
+  animation: swapFlash 0.5s ease;
+}
+
+@keyframes swapFlash {
+  0% { background: rgba(255, 107, 53, 0.15); transform: scale(0.98); }
+  50% { background: rgba(255, 107, 53, 0.08); transform: scale(1.01); }
+  100% { background: transparent; transform: scale(1); }
 }
 
 /* 水果和零食卡片 */
@@ -696,6 +747,15 @@ body {
 
   .dish-recipe-btn {
     background: rgba(255,107,53,0.15);
+  }
+
+  .dish-swap-btn {
+    background: #3A3A3C;
+    border-color: #48484A;
+  }
+
+  .dish-swapped {
+    background: rgba(76, 175, 80, 0.08);
   }
 
   .recipe-modal-content {

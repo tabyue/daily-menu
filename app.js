@@ -1,6 +1,6 @@
 /**
  * 每日家庭食谱 - 核心 JS
- * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看
+ * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看、换一个
  */
 
 (function () {
@@ -16,6 +16,7 @@
   };
 
   const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const DAY_LABELS = ['今天', '明天', '后天', '第4天', '第5天'];
 
   function getSeason(month) {
     if (month >= 3 && month <= 5) return { name: '春季时令', emoji: '🌸' };
@@ -30,28 +31,62 @@
   let currentDate = formatDate(today);
   let menuCache = {};
 
+  // 记录每道菜当前使用的是哪个备选（主菜=0, 备选1=1, 备选2=2...）
+  // key: "dateStr|mealKey|idx"  value: alternativeIndex
+  let swapState = {};
+
   // ===== 初始化 =====
   function init() {
     const season = getSeason(today.getMonth() + 1);
     $('#seasonTag').textContent = season.emoji + ' ' + season.name;
+    loadSwapState();
     renderDateTabs();
     bindEvents();
     loadMenu(currentDate);
+  }
+
+  // ===== 换菜状态持久化（localStorage）=====
+  function loadSwapState() {
+    try {
+      const saved = localStorage.getItem('dailyMenu_swapState');
+      if (saved) swapState = JSON.parse(saved);
+    } catch (e) { /* ignore */ }
+  }
+
+  function saveSwapState() {
+    try {
+      localStorage.setItem('dailyMenu_swapState', JSON.stringify(swapState));
+    } catch (e) { /* ignore */ }
+  }
+
+  function getSwapKey(dateStr, mealKey, idx) {
+    return `${dateStr}|${mealKey}|${idx}`;
+  }
+
+  // 获取当前应该展示的菜品（考虑换菜状态）
+  function getCurrentDish(dateStr, mealKey, idx, dish) {
+    const key = getSwapKey(dateStr, mealKey, idx);
+    const altIdx = swapState[key] || 0;
+    if (altIdx === 0 || !dish.alternatives || !dish.alternatives[altIdx - 1]) {
+      return dish;
+    }
+    // 返回备选菜，但保留 alternatives 引用
+    return { ...dish.alternatives[altIdx - 1], alternatives: dish.alternatives, _originalName: dish.name };
   }
 
   // ===== 日期标签 =====
   function renderDateTabs() {
     const container = $('#dateTabs');
     container.innerHTML = '';
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
       const dateStr = formatDate(d);
       const tab = document.createElement('div');
-      tab.className = 'date-tab' + (i === 0 ? ' active today' : '');
+      tab.className = 'date-tab' + (dateStr === currentDate ? ' active' : '') + (i === 0 ? ' today' : '');
       tab.dataset.date = dateStr;
 
-      let label = i === 0 ? '今天' : i === 1 ? '明天' : '后天';
+      const label = i <= 2 ? DAY_LABELS[i] : `${(d.getMonth() + 1)}/${d.getDate()}`;
       tab.innerHTML = `
         <span class="day-name">${label}</span>
         <span class="day-date">${(d.getMonth() + 1)}/${d.getDate()} ${WEEKDAYS[d.getDay()]}</span>
@@ -115,11 +150,11 @@
     }
 
     // 各餐
-    renderMealSection('breakfastBody', data.breakfast);
-    renderMealSection('lunchBody', data.lunch);
-    renderMealSection('dinnerBody', data.dinner);
-    renderMealSection('fruitBody', data.fruit);
-    renderMealSection('snackBody', data.snack);
+    renderMealSection('breakfastBody', 'breakfast', data.breakfast);
+    renderMealSection('lunchBody', 'lunch', data.lunch);
+    renderMealSection('dinnerBody', 'dinner', data.dinner);
+    renderMealSection('fruitBody', 'fruit', data.fruit);
+    renderMealSection('snackBody', 'snack', data.snack);
 
     // 小贴士
     if (data.tips) {
@@ -137,32 +172,77 @@
     });
   }
 
-  function renderMealSection(containerId, dishes) {
+  function renderMealSection(containerId, mealKey, dishes) {
     const container = $(`#${containerId}`);
     if (!dishes || dishes.length === 0) {
       container.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">暂无数据</p>';
       return;
     }
 
-    container.innerHTML = dishes.map((dish, idx) => `
-      <div class="dish-item">
-        <div class="dish-emoji">${dish.emoji || '🍽️'}</div>
+    container.innerHTML = dishes.map((dish, idx) => {
+      const currentDish = getCurrentDish(currentDate, mealKey, idx, dish);
+      const hasAlts = dish.alternatives && dish.alternatives.length > 0;
+      const swapKey = getSwapKey(currentDate, mealKey, idx);
+      const isSwapped = (swapState[swapKey] || 0) > 0;
+
+      return `
+      <div class="dish-item${isSwapped ? ' dish-swapped' : ''}" id="dish-${mealKey}-${idx}">
+        <div class="dish-emoji">${currentDish.emoji || '🍽️'}</div>
         <div class="dish-info">
           <div class="dish-name">
-            ${dish.name}
-            ${(dish.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
+            ${currentDish.name}
+            ${(currentDish.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
+            ${isSwapped ? '<span class="dish-tag swapped">已换</span>' : ''}
           </div>
-          ${dish.desc ? `<div class="dish-desc">${dish.desc}</div>` : ''}
-          ${dish.amount ? `<div class="dish-amount">👨‍👦 ${dish.amount}</div>` : ''}
+          ${currentDish.desc ? `<div class="dish-desc">${currentDish.desc}</div>` : ''}
+          ${currentDish.amount ? `<div class="dish-amount">👨‍👦 ${currentDish.amount}</div>` : ''}
         </div>
-        ${dish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
-      </div>
-    `).join('');
+        <div class="dish-actions">
+          ${hasAlts ? `<button class="dish-swap-btn" data-meal="${mealKey}" data-idx="${idx}" title="换一道菜">🔄</button>` : ''}
+          ${currentDish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ===== 换一个 =====
+  function swapDish(mealKey, idx) {
+    const data = menuCache[currentDate];
+    if (!data) return;
+    const dishes = data[mealKey];
+    if (!dishes || !dishes[idx]) return;
+
+    const dish = dishes[idx];
+    if (!dish.alternatives || dish.alternatives.length === 0) return;
+
+    const swapKey = getSwapKey(currentDate, mealKey, idx);
+    const currentAlt = swapState[swapKey] || 0;
+    const totalOptions = dish.alternatives.length + 1; // 原菜 + 备选
+    const nextAlt = (currentAlt + 1) % totalOptions;
+
+    swapState[swapKey] = nextAlt;
+    saveSwapState();
+
+    // 重新渲染该餐段
+    const containerIdMap = {
+      breakfast: 'breakfastBody',
+      lunch: 'lunchBody',
+      dinner: 'dinnerBody',
+      fruit: 'fruitBody',
+      snack: 'snackBody',
+    };
+    renderMealSection(containerIdMap[mealKey], mealKey, dishes);
+
+    // 给被换的菜一个高亮动画
+    const dishEl = $(`#dish-${mealKey}-${idx}`);
+    if (dishEl) {
+      dishEl.classList.add('dish-swap-anim');
+      setTimeout(() => dishEl.classList.remove('dish-swap-anim'), 500);
+    }
   }
 
   // ===== 做法弹窗 =====
-  function showRecipe(mealKey, idx) {
-    // 从 containerId 反推数据 key
+  function showRecipe(containerId, idx) {
     const keyMap = {
       breakfastBody: 'breakfast',
       lunchBody: 'lunch',
@@ -170,17 +250,19 @@
       fruitBody: 'fruit',
       snackBody: 'snack',
     };
+    const mealKey = keyMap[containerId];
     const data = menuCache[currentDate];
     if (!data) return;
 
-    const mealData = data[keyMap[mealKey]];
-    if (!mealData || !mealData[idx]) return;
+    const dishes = data[mealKey];
+    if (!dishes || !dishes[idx]) return;
 
-    const dish = mealData[idx];
-    const recipe = dish.recipe;
+    const dish = dishes[idx];
+    const currentDish = getCurrentDish(currentDate, mealKey, idx, dish);
+    const recipe = currentDish.recipe;
     if (!recipe) return;
 
-    $('#recipeTitle').textContent = `📝 ${dish.name} - 做法`;
+    $('#recipeTitle').textContent = `📝 ${currentDish.name} - 做法`;
     $('#recipeBody').innerHTML = `
       ${recipe.ingredients ? `
         <div class="recipe-section">
@@ -228,7 +310,6 @@
     if (!val) return;
     closeHistory();
 
-    // 移除现有 active
     document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
     currentDate = val;
     loadMenu(val);
@@ -236,11 +317,19 @@
 
   // ===== 事件绑定 =====
   function bindEvents() {
-    // 做法按钮（事件委托）
+    // 菜品区域事件委托
     $('#mealsContainer').addEventListener('click', (e) => {
-      const btn = e.target.closest('.dish-recipe-btn');
-      if (btn) {
-        showRecipe(btn.dataset.meal, parseInt(btn.dataset.idx));
+      // 做法按钮
+      const recipeBtn = e.target.closest('.dish-recipe-btn');
+      if (recipeBtn) {
+        showRecipe(recipeBtn.dataset.meal, parseInt(recipeBtn.dataset.idx));
+        return;
+      }
+      // 换一个按钮
+      const swapBtn = e.target.closest('.dish-swap-btn');
+      if (swapBtn) {
+        swapDish(swapBtn.dataset.meal, parseInt(swapBtn.dataset.idx));
+        return;
       }
     });
 

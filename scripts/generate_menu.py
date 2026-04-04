@@ -1,6 +1,7 @@
 """
 每日家庭菜谱生成器
-由 GitHub Actions 每日自动调用，通过 AI 生成未来3天的菜谱数据。
+由 GitHub Actions 每日自动调用，通过 AI 生成未来5天的菜谱数据。
+每道菜同时生成2个备选替换方案，供前端「换一个」功能使用。
 """
 
 import json
@@ -99,6 +100,9 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
                 for meal_key in ["breakfast", "lunch", "dinner"]:
                     for dish in menu.get(meal_key, []):
                         dishes.append(dish.get("name", ""))
+                        # 也收集备选菜名
+                        for alt in dish.get("alternatives", []):
+                            dishes.append(alt.get("name", ""))
                 recent_dishes += f"- {d}: {', '.join(dishes)}\n"
             except Exception:
                 pass
@@ -113,7 +117,7 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 ## 基本要求
 - 严格遵循《中国居民膳食指南(2022)》和中国儿童青少年膳食营养标准
 - 每日需包含：早餐、午餐、晚餐、水果、零食/加餐
-- 食材用量请按实际人数标注（区分成人和青少年）
+- 食材用量请按实际人数标注
 
 ## 当前季节：{season_info['name']}
 - 时令蔬菜：{season_info['vegetables']}
@@ -140,6 +144,13 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 
 {recent_dishes}
 
+## 换菜备选要求（重要！）
+- 早餐、午餐、晚餐中的每道菜，都需要额外提供 **2个备选替换方案**
+- 备选菜必须与原菜在营养角色上相近（如：蛋白质菜换蛋白质菜，蔬菜换蔬菜，主食换主食）
+- 备选菜不能与当天其他菜重复
+- 备选菜放在每道菜的 "alternatives" 字段中
+- 水果和零食不需要备选
+
 ## 输出格式要求
 请严格按照以下 JSON 格式输出，不要输出任何 JSON 以外的内容：
 
@@ -153,13 +164,31 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
       "name": "菜名",
       "emoji": "一个贴切的emoji",
       "desc": "简短描述（15字以内）",
-      "amount": "具体用量（标注成人/少年份量）",
+      "amount": "具体用量",
       "tags": [{{"type": "staple|protein|veggie|seasonal|spicy|sweet|sour", "label": "显示文字"}}],
       "recipe": {{
         "ingredients": ["食材1及用量", "食材2及用量"],
         "steps": ["步骤1", "步骤2", "步骤3"],
         "tips": ["小窍门1"]
-      }}
+      }},
+      "alternatives": [
+        {{
+          "name": "备选菜名1",
+          "emoji": "emoji",
+          "desc": "描述",
+          "amount": "用量",
+          "tags": [...],
+          "recipe": {{ "ingredients": [...], "steps": [...], "tips": [...] }}
+        }},
+        {{
+          "name": "备选菜名2",
+          "emoji": "emoji",
+          "desc": "描述",
+          "amount": "用量",
+          "tags": [...],
+          "recipe": {{ "ingredients": [...], "steps": [...], "tips": [...] }}
+        }}
+      ]
     }}
   ],
   "lunch": [...],
@@ -181,7 +210,7 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
       "desc": "简短描述",
       "amount": "用量",
       "tags": [],
-      "recipe": null 或 {{...}}
+      "recipe": null
     }}
   ],
   "tips": ["营养小贴士1", "营养小贴士2", "营养小贴士3", "营养小贴士4"]
@@ -190,11 +219,13 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 
 注意事项：
 1. 每个 recipe 如果是简单食物（如白煮蛋、牛奶等）可以设为 null
-2. tags 的 type 只能是以下之一：staple（主食类）、protein（蛋白质）、veggie（蔬菜）、seasonal（时令）、spicy（辣）、sweet（甜）、sour（酸）
-3. emoji 请选择最贴切的一个
-4. amount 要具体标注总量和份量，节假日3人份要比平日2人份多
-5. 做法步骤要详细实用，新手也能看懂
-6. 食材用量要精确到克/个/勺
+2. tags 的 type 只能是以下之一：staple protein veggie seasonal spicy sweet sour
+3. alternatives 每个菜提供2个备选，格式和主菜完全一致（含 recipe）
+4. 简单食物（白煮蛋、牛奶等）的 alternatives 可以为空数组 []
+5. 水果和零食不需要 alternatives 字段
+6. 备选菜要和原菜营养角色一致，且不与当日其他菜重复
+7. 做法步骤要详细实用，新手也能看懂
+8. 食材用量要精确到克/个/勺
 
 请直接输出 JSON，不要包含 ```json 标记或其他文本。"""
 
@@ -211,12 +242,12 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
             messages=[
                 {
                     "role": "system",
-                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。",
+                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。每道菜必须包含alternatives备选字段。",
                 },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.8,
-            max_tokens=4000,
+            max_tokens=8000,
         )
 
         content = response.choices[0].message.content.strip()
@@ -240,7 +271,7 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
         return None
 
 
-def load_recent_menus(data_dir: Path, today: datetime, days_back: int = 5) -> list:
+def load_recent_menus(data_dir: Path, today: datetime, days_back: int = 7) -> list:
     """加载最近几天的菜谱数据，用于避免重复"""
     menus = []
     for i in range(1, days_back + 1):
@@ -257,7 +288,7 @@ def load_recent_menus(data_dir: Path, today: datetime, days_back: int = 5) -> li
 
 
 def main():
-    # 配置
+    # 配置 - 支持自定义 base_url / api_key / model
     api_key = os.environ.get("OPENAI_API_KEY")
     api_base = os.environ.get("OPENAI_API_BASE", None)
     model = os.environ.get("OPENAI_MODEL", "gpt-4o")
@@ -266,7 +297,7 @@ def main():
         print("ERROR: OPENAI_API_KEY environment variable is required")
         sys.exit(1)
 
-    # 初始化客户端
+    # 初始化客户端 - 兼容任何 OpenAI 兼容 API
     client_kwargs = {"api_key": api_key}
     if api_base:
         client_kwargs["base_url"] = api_base
@@ -277,27 +308,38 @@ def main():
     data_dir = script_dir.parent / "data"
     data_dir.mkdir(exist_ok=True)
 
-    # 日期范围：今天 + 未来2天
+    # 日期范围：今天 + 未来4天 = 5天
     today = datetime.now()
     dates_to_generate = []
-    for i in range(3):
+    for i in range(5):
         d = today + timedelta(days=i)
         date_str = d.strftime("%Y-%m-%d")
         file_path = data_dir / f"{date_str}.json"
 
-        # 如果文件已存在且不是今天的，跳过
-        # 今天的文件如果已存在也跳过（避免重复生成）
+        # 已有数据的日期跳过（不覆盖已规划好的菜谱）
         if file_path.exists():
-            print(f"SKIP: {date_str} already exists")
+            print(f"SKIP: {date_str} already exists (won't overwrite)")
             continue
         dates_to_generate.append(date_str)
 
     if not dates_to_generate:
-        print("All menus for the next 3 days already exist. Nothing to generate.")
+        print("All menus for the next 5 days already exist. Nothing to generate.")
         return
 
-    # 加载近期菜谱用于避免重复
+    # 加载近期菜谱 + 已有的未来菜谱，用于避免重复
     recent_menus = load_recent_menus(data_dir, today)
+
+    # 也加载已有的未来日期菜谱
+    for i in range(5):
+        d = today + timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        file_path = data_dir / f"{date_str}.json"
+        if file_path.exists():
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    recent_menus.append(json.load(f))
+            except Exception:
+                pass
 
     # 生成菜谱
     for date_str in dates_to_generate:

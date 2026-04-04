@@ -5,13 +5,15 @@
 ## ✨ 特性
 
 - 📱 **移动端优先** - 完美适配微信内置浏览器
-- 🤖 **AI 自动生成** - GitHub Actions 每日定时调用 AI 生成菜谱
+- 🤖 **AI 自动生成** - GitHub Actions 每天 0 点自动生成未来 5 天菜谱
+- 🔄 **不满意就换** - 每道菜都有 2 个备选方案，一键切换保持营养均衡
 - 🥬 **时令食材** - 根据季节自动推荐当季蔬菜水果
-- 👨‍👦 **家庭定量** - 精确标注成人和青少年用量
+- 👨‍👩‍👦 **智能份量** - 工作日 2 人份（妈妈+儿子）/ 节假日 3 人份（全家）
 - 📖 **详细做法** - 每道菜都有食材清单和步骤
 - 📅 **历史回看** - 支持查看任意日期的菜谱记录
 - 🌙 **深色模式** - 跟随系统自动切换
 - ⚖️ **营养均衡** - 参考《中国居民膳食指南(2022)》
+- 🔒 **数据不丢失** - 已生成的菜谱不会被覆盖
 
 ## 🍽️ 菜谱标准
 
@@ -28,12 +30,19 @@
 本项目通过 GitHub Pages 部署：
 
 1. Fork 本仓库
-2. 在仓库 Settings > Secrets 中添加：
-   - `OPENAI_API_KEY` - OpenAI API 密钥
-   - `OPENAI_API_BASE` - (可选) API 代理地址
-   - `OPENAI_MODEL` - (可选) 模型名称，默认 gpt-4o
+2. 在仓库 Settings > Secrets and variables > Actions 中添加以下 Secrets：
+
+| Secret 名称 | 必填 | 说明 |
+|---|---|---|
+| `OPENAI_API_KEY` | ✅ | API 密钥 |
+| `OPENAI_API_BASE` | ❌ | API 地址（如使用代理或兼容接口）。例如：`https://your-proxy.com/v1` |
+| `OPENAI_MODEL` | ❌ | 模型名称，默认 `gpt-4o`。支持任何 OpenAI 兼容模型 |
+
 3. 在 Settings > Pages 中启用 GitHub Pages（Source 选 GitHub Actions）
-4. GitHub Actions 会每天凌晨 5:00 (北京时间) 自动生成菜谱
+4. GitHub Actions 会每天北京时间 **0:00** 自动检查并生成缺失的未来 5 天菜谱
+5. **已存在的菜谱数据不会被覆盖**，只会新增缺失日期
+
+> 💡 支持任何兼容 OpenAI API 格式的模型服务，只需设置 `OPENAI_API_BASE` 指向你的服务地址即可。
 
 ## 📁 项目结构
 
