@@ -57,9 +57,6 @@ body {
   background: linear-gradient(135deg, var(--primary) 0%, #FF8F65 100%);
   color: white;
   padding: 20px 16px 16px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
 
 .header-content {
@@ -91,8 +88,8 @@ body {
   align-items: center;
   gap: 8px;
   position: sticky;
-  top: 72px;
-  z-index: 99;
+  top: 0;
+  z-index: 100;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
@@ -454,23 +451,24 @@ body {
 
 .dish-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 6px;
   align-self: center;
   flex-shrink: 0;
 }
 
 .dish-recipe-btn {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--primary);
   border-radius: 8px;
   background: var(--primary-light);
   color: var(--primary);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  line-height: 1.4;
 }
 
 .dish-recipe-btn:active {
@@ -479,24 +477,26 @@ body {
 }
 
 .dish-swap-btn {
-  width: 36px;
-  height: 36px;
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--bg);
-  font-size: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 2px;
   transition: all 0.2s;
-  padding: 0;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .dish-swap-btn:active {
   background: var(--primary-light);
   border-color: var(--primary);
-  transform: rotate(180deg);
+  color: var(--primary);
 }
 
 .dish-tag.swapped {
@@ -752,6 +752,7 @@ body {
   .dish-swap-btn {
     background: #3A3A3C;
     border-color: #48484A;
+    color: var(--text-secondary);
   }
 
   .dish-swapped {

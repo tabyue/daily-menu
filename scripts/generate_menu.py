@@ -138,6 +138,7 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 ## 营养均衡要求
 - 每日蛋白质来源多样（肉、蛋、奶、豆、鱼虾）
 - 深圳靠海，适当多安排海鲜/鱼类
+- **午餐必须有至少1道荤菜（带肉/鱼/虾的菜），午餐总共安排3-4道菜（含主食）**
 - 蔬菜种类不少于3种/天，深色蔬菜占一半以上
 - 注意钙、铁、锌的摄入（青少年生长发育需要）
 - 晚餐相对清淡，不宜过重
@@ -328,10 +329,10 @@ def main():
     data_dir = script_dir.parent / "data"
     data_dir.mkdir(exist_ok=True)
 
-    # 日期范围：今天 + 未来4天 = 5天
+    # 日期范围：今天 + 未来2天 = 3天
     today = datetime.now()
     dates_to_generate = []
-    for i in range(5):
+    for i in range(3):
         d = today + timedelta(days=i)
         date_str = d.strftime("%Y-%m-%d")
         file_path = data_dir / f"{date_str}.json"
@@ -343,14 +344,14 @@ def main():
         dates_to_generate.append(date_str)
 
     if not dates_to_generate:
-        print("All menus for the next 5 days already exist. Nothing to generate.")
+        print("All menus for the next 3 days already exist. Nothing to generate.")
         return
 
     # 加载近期菜谱 + 已有的未来菜谱，用于避免重复
     recent_menus = load_recent_menus(data_dir, today)
 
     # 也加载已有的未来日期菜谱
-    for i in range(5):
+    for i in range(3):
         d = today + timedelta(days=i)
         date_str = d.strftime("%Y-%m-%d")
         file_path = data_dir / f"{date_str}.json"

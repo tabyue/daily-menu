@@ -16,7 +16,7 @@
   };
 
   const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-  const DAY_LABELS = ['今天', '明天', '后天', '第4天', '第5天'];
+  const DAY_LABELS = ['今天', '明天', '后天'];
 
   function getSeason(month) {
     if (month >= 3 && month <= 5) return { name: '春季时令', emoji: '🌸' };
@@ -78,7 +78,7 @@
   function renderDateTabs() {
     const container = $('#dateTabs');
     container.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
       const dateStr = formatDate(d);
@@ -86,7 +86,7 @@
       tab.className = 'date-tab' + (dateStr === currentDate ? ' active' : '') + (i === 0 ? ' today' : '');
       tab.dataset.date = dateStr;
 
-      const label = i <= 2 ? DAY_LABELS[i] : `${(d.getMonth() + 1)}/${d.getDate()}`;
+      const label = DAY_LABELS[i];
       tab.innerHTML = `
         <span class="day-name">${label}</span>
         <span class="day-date">${(d.getMonth() + 1)}/${d.getDate()} ${WEEKDAYS[d.getDay()]}</span>
@@ -198,7 +198,7 @@
           ${currentDish.amount ? `<div class="dish-amount">👨‍👦 ${currentDish.amount}</div>` : ''}
         </div>
         <div class="dish-actions">
-          ${hasAlts ? `<button class="dish-swap-btn" data-meal="${mealKey}" data-idx="${idx}" title="换一道菜">🔄</button>` : ''}
+          ${hasAlts ? `<button class="dish-swap-btn" data-meal="${mealKey}" data-idx="${idx}">换</button>` : ''}
           ${currentDish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
         </div>
       </div>`;
