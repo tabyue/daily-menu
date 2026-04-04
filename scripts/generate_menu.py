@@ -135,7 +135,7 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 ## 营养均衡要求
 - 每日蛋白质来源多样（肉、蛋、奶、豆、鱼虾）
 - 深圳靠海，适当多安排海鲜/鱼类
-- **午餐必须有至少1道荤菜（带肉/鱼/虾的菜），午餐总共安排3-4道菜（含主食）**
+- **午餐安排3-5道菜（不含主食），至少1道荤菜（必须带肉/鱼/虾），种类丰富些，2人份的话每道菜份量可以少一点**
 - 蔬菜种类不少于3种/天，深色蔬菜占一半以上
 - 注意钙、铁、锌的摄入（青少年生长发育需要）
 - 晚餐相对清淡，不宜过重
@@ -220,7 +220,7 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
                 {"role": "user", "content": prompt},
             ],
             temperature=0.8,
-            max_tokens=6000,
+            max_tokens=30000,
             )
 
             # 检查空响应
