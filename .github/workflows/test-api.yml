@@ -1,0 +1,47 @@
+name: Test AI API
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test API Connection
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        run: |
+          pip install openai -q
+          python3 << 'EOF'
+          import os
+          from openai import OpenAI
+          from httpx import Timeout
+
+          key = os.environ.get("OPENAI_API_KEY", "")
+          base = os.environ.get("OPENAI_API_BASE", "")
+          model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+
+          print(f"API Base: {base}")
+          print(f"Model: {model}")
+          print(f"Key: {key[:8]}...{key[-4:]}")
+          print()
+
+          kwargs = {"api_key": key, "timeout": Timeout(120.0, connect=30.0)}
+          if base:
+              kwargs["base_url"] = base
+          client = OpenAI(**kwargs)
+
+          print("Sending simple request...")
+          try:
+              resp = client.chat.completions.create(
+                  model=model,
+                  messages=[{"role": "user", "content": "Say hello in Chinese, just one sentence."}],
+                  max_tokens=50,
+              )
+              msg = resp.choices[0].message
+              print(f"SUCCESS! Response: {msg.content}")
+          except Exception as e:
+              print(f"FAILED! Error: {e}")
+          EOF
