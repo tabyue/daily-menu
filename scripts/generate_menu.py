@@ -329,19 +329,26 @@ def main():
     data_dir = script_dir.parent / "data"
     data_dir.mkdir(exist_ok=True)
 
-    # 日期范围：今天 + 未来2天 = 3天
     today = datetime.now()
-    dates_to_generate = []
-    for i in range(3):
-        d = today + timedelta(days=i)
-        date_str = d.strftime("%Y-%m-%d")
-        file_path = data_dir / f"{date_str}.json"
 
-        # 已有数据的日期跳过（不覆盖已规划好的菜谱）
-        if file_path.exists():
-            print(f"SKIP: {date_str} already exists (won't overwrite)")
-            continue
-        dates_to_generate.append(date_str)
+    # 支持指定日期重新生成（由 regenerate-menu.yml 触发）
+    regenerate_date = os.environ.get("REGENERATE_DATE", "").strip()
+    if regenerate_date:
+        print(f"=== REGENERATE MODE: {regenerate_date} ===")
+        dates_to_generate = [regenerate_date]
+    else:
+        # 正常模式：今天 + 未来2天 = 3天，只生成缺失的
+        dates_to_generate = []
+        for i in range(3):
+            d = today + timedelta(days=i)
+            date_str = d.strftime("%Y-%m-%d")
+            file_path = data_dir / f"{date_str}.json"
+
+            # 已有数据的日期跳过（不覆盖已规划好的菜谱）
+            if file_path.exists():
+                print(f"SKIP: {date_str} already exists (won't overwrite)")
+                continue
+            dates_to_generate.append(date_str)
 
     if not dates_to_generate:
         print("All menus for the next 3 days already exist. Nothing to generate.")
