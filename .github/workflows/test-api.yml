@@ -14,8 +14,8 @@ jobs:
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: |
           pip install openai -q
-          python3 << 'EOF'
-          import os
+          python3 << 'PYEOF'
+          import os, json
           from openai import OpenAI
           from httpx import Timeout
 
@@ -28,25 +28,94 @@ jobs:
           print(f"Key: {key[:8]}...{key[-4:]}")
           print()
 
-          kwargs = {"api_key": key, "timeout": Timeout(120.0, connect=30.0)}
+          kwargs = {"api_key": key, "timeout": Timeout(300.0, connect=30.0)}
           if base:
               kwargs["base_url"] = base
           client = OpenAI(**kwargs)
 
-          print("Sending simple request...")
+          # ===== 测试1: 简单对话 =====
+          print("=" * 50)
+          print("TEST 1: Simple chat (with max_tokens=500)")
           try:
               resp = client.chat.completions.create(
                   model=model,
-                  messages=[{"role": "user", "content": "Say hello in Chinese, just one sentence."}],
+                  messages=[{"role": "user", "content": "用中文说一句你好并介绍你自己，不超过50字。"}],
+                  max_tokens=500,
               )
               c = resp.choices[0]
-              print(f"finish_reason: {c.finish_reason}")
-              print(f"content: [{c.message.content}]")
+              print(f"  finish_reason: {c.finish_reason}")
+              print(f"  content: [{c.message.content}]")
               rc = getattr(c.message, 'reasoning_content', None)
               if rc:
-                  print(f"reasoning_content: [{rc[:200]}]")
-              print(f"Usage: {resp.usage}")
-              print("SUCCESS!" if (c.message.content or rc) else "FAILED: both content and reasoning_content are empty")
+                  print(f"  reasoning_content (first 100): [{rc[:100]}...]")
+              print(f"  usage: {resp.usage}")
+              print(f"  TEST 1: {'PASS' if c.message.content else 'FAIL - content is empty!'}")
           except Exception as e:
-              print(f"FAILED! {type(e).__name__}: {e}")
-          EOF
+              print(f"  TEST 1: FAIL - {type(e).__name__}: {e}")
+
+          print()
+
+          # ===== 测试2: JSON输出 (模拟菜谱) =====
+          print("=" * 50)
+          print("TEST 2: JSON output (simulate menu generation)")
+          try:
+              resp = client.chat.completions.create(
+                  model=model,
+                  messages=[{"role": "user", "content": '请输出一个JSON对象，包含一道菜的信息。格式如下，直接输出JSON不要其他内容：\n{"name": "菜名", "emoji": "emoji", "desc": "描述"}'}],
+                  max_tokens=500,
+              )
+              c = resp.choices[0]
+              content = c.message.content or ""
+              print(f"  finish_reason: {c.finish_reason}")
+              print(f"  raw content: [{content}]")
+              
+              # 尝试提取JSON
+              text = content.strip()
+              if text.startswith("```"):
+                  text = text.split("\n", 1)[1] if "\n" in text else text
+              if text.endswith("```"):
+                  text = text.rsplit("```", 1)[0]
+              text = text.strip()
+              
+              # 尝试从文本中找JSON
+              if not text.startswith("{"):
+                  import re
+                  m = re.search(r'\{[^{}]*\}', text)
+                  if m:
+                      text = m.group()
+                      print(f"  extracted JSON from text: [{text}]")
+              
+              if text:
+                  data = json.loads(text)
+                  print(f"  parsed JSON: {data}")
+                  print(f"  TEST 2: PASS")
+              else:
+                  print(f"  TEST 2: FAIL - no content to parse")
+          except json.JSONDecodeError as e:
+              print(f"  TEST 2: FAIL - JSON parse error: {e}")
+              print(f"  cleaned text: [{text[:200]}]")
+          except Exception as e:
+              print(f"  TEST 2: FAIL - {type(e).__name__}: {e}")
+
+          print()
+
+          # ===== 测试3: 不带 max_tokens =====
+          print("=" * 50)
+          print("TEST 3: Without max_tokens")
+          try:
+              resp = client.chat.completions.create(
+                  model=model,
+                  messages=[{"role": "user", "content": "回答：1+1等于几？只回答数字。"}],
+              )
+              c = resp.choices[0]
+              print(f"  finish_reason: {c.finish_reason}")
+              print(f"  content: [{c.message.content}]")
+              print(f"  usage: {resp.usage}")
+              print(f"  TEST 3: {'PASS' if c.message.content else 'FAIL'}")
+          except Exception as e:
+              print(f"  TEST 3: FAIL - {type(e).__name__}: {e}")
+
+          print()
+          print("=" * 50)
+          print("ALL TESTS COMPLETE")
+          PYEOF
