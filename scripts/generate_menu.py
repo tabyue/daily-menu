@@ -7,6 +7,7 @@
 import json
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -233,42 +234,56 @@ def build_prompt(date_str: str, season_info: dict, recent_menus: list) -> str:
 
 
 def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus: list, model: str = "gpt-4o") -> dict:
-    """调用 AI 生成菜谱"""
+    """调用 AI 生成菜谱，支持重试"""
     prompt = build_prompt(date_str, season_info, recent_menus)
+    max_retries = 3
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。每道菜必须包含alternatives备选字段。",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.8,
-            max_tokens=8000,
-        )
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"  Attempt {attempt}/{max_retries}...")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。每道菜必须包含alternatives备选字段。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.8,
+                max_tokens=8000,
+            )
 
-        content = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content.strip()
 
-        # 清理可能的 markdown 代码块标记
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1]
-        if content.endswith("```"):
-            content = content.rsplit("```", 1)[0]
-        content = content.strip()
+            # 清理可能的 markdown 代码块标记
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1]
+            if content.endswith("```"):
+                content = content.rsplit("```", 1)[0]
+            content = content.strip()
 
-        menu_data = json.loads(content)
-        return menu_data
+            menu_data = json.loads(content)
+            return menu_data
 
-    except json.JSONDecodeError as e:
-        print(f"ERROR: Failed to parse AI response as JSON: {e}")
-        print(f"Response content: {content[:500]}")
-        return None
-    except Exception as e:
-        print(f"ERROR: AI API call failed: {e}")
-        return None
+        except json.JSONDecodeError as e:
+            print(f"  ERROR: Failed to parse AI response as JSON: {e}")
+            print(f"  Response content (first 300 chars): {content[:300]}")
+            if attempt < max_retries:
+                print(f"  Retrying in 10 seconds...")
+                time.sleep(10)
+            else:
+                return None
+        except Exception as e:
+            error_msg = str(e)
+            print(f"  ERROR: AI API call failed: {error_msg[:200]}")
+            if attempt < max_retries:
+                wait_time = 15 * attempt  # 递增等待：15s, 30s
+                print(f"  Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"  All {max_retries} attempts failed.")
+                return None
 
 
 def load_recent_menus(data_dir: Path, today: datetime, days_back: int = 7) -> list:
@@ -298,7 +313,12 @@ def main():
         sys.exit(1)
 
     # 初始化客户端 - 兼容任何 OpenAI 兼容 API
-    client_kwargs = {"api_key": api_key}
+    # 设置较长超时：生成含备选方案的完整菜谱需要较多时间
+    from httpx import Timeout
+    client_kwargs = {
+        "api_key": api_key,
+        "timeout": Timeout(300.0, connect=30.0),  # 总超时5分钟，连接超时30秒
+    }
     if api_base:
         client_kwargs["base_url"] = api_base
     client = OpenAI(**client_kwargs)
