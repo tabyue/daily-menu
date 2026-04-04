@@ -1,12 +1,11 @@
 /**
  * 每日家庭食谱 - 核心 JS
- * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看
+ * 负责：日期切换、数据加载、菜谱渲染、做法弹窗、历史回看、换菜
  */
 
 (function () {
   'use strict';
 
-  // ===== 工具函数 =====
   const $ = (sel) => document.querySelector(sel);
   const formatDate = (d) => {
     const y = d.getFullYear();
@@ -30,21 +29,38 @@
   today.setHours(0, 0, 0, 0);
   let currentDate = formatDate(today);
   let menuCache = {};
+  let swapState = {}; // key: "date|meal|idx" → altIndex (0=原菜)
 
   // ===== 初始化 =====
   function init() {
     const season = getSeason(today.getMonth() + 1);
     $('#seasonTag').textContent = season.emoji + ' ' + season.name;
-
-    // 动态计算标题栏高度，让日期栏精确贴在下方
     const header = $('.header');
     if (header) {
       document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
     }
-
+    loadSwapState();
     renderDateTabs();
     bindEvents();
     loadMenu(currentDate);
+  }
+
+  // ===== 换菜状态持久化 =====
+  function loadSwapState() {
+    try {
+      const s = localStorage.getItem('menu_swap');
+      if (s) swapState = JSON.parse(s);
+    } catch (e) {}
+  }
+  function saveSwapState() {
+    try { localStorage.setItem('menu_swap', JSON.stringify(swapState)); } catch (e) {}
+  }
+
+  function getDish(dateStr, mealKey, idx, dish) {
+    const key = `${dateStr}|${mealKey}|${idx}`;
+    const ai = swapState[key] || 0;
+    if (ai === 0 || !dish.alternatives || !dish.alternatives[ai - 1]) return dish;
+    return { ...dish.alternatives[ai - 1], alternatives: dish.alternatives };
   }
 
   // ===== 日期标签 =====
@@ -58,10 +74,8 @@
       const tab = document.createElement('div');
       tab.className = 'date-tab' + (dateStr === currentDate ? ' active' : '') + (i === 0 ? ' today' : '');
       tab.dataset.date = dateStr;
-
-      const label = DAY_LABELS[i];
       tab.innerHTML = `
-        <span class="day-name">${label}</span>
+        <span class="day-name">${DAY_LABELS[i]}</span>
         <span class="day-date">${(d.getMonth() + 1)}/${d.getDate()} ${WEEKDAYS[d.getDay()]}</span>
       `;
       tab.addEventListener('click', () => selectDate(dateStr));
@@ -79,18 +93,11 @@
 
   // ===== 数据加载 =====
   async function loadMenu(dateStr) {
-    const loading = $('#loading');
-    const emptyState = $('#emptyState');
-    const container = $('#mealsContainer');
+    $('#loading').style.display = 'flex';
+    $('#emptyState').style.display = 'none';
+    $('#mealsContainer').style.display = 'none';
 
-    loading.style.display = 'flex';
-    emptyState.style.display = 'none';
-    container.style.display = 'none';
-
-    if (menuCache[dateStr]) {
-      renderMenu(menuCache[dateStr]);
-      return;
-    }
+    if (menuCache[dateStr]) { renderMenu(menuCache[dateStr]); return; }
 
     try {
       const resp = await fetch(`data/${dateStr}.json`);
@@ -99,18 +106,17 @@
       menuCache[dateStr] = data;
       renderMenu(data);
     } catch (e) {
-      loading.style.display = 'none';
-      emptyState.style.display = 'block';
+      $('#loading').style.display = 'none';
+      $('#emptyState').style.display = 'block';
     }
   }
 
-  // ===== 渲染菜谱 =====
+  // ===== 渲染 =====
   function renderMenu(data) {
     $('#loading').style.display = 'none';
     $('#emptyState').style.display = 'none';
     $('#mealsContainer').style.display = 'block';
 
-    // 日期和总览
     if (data.summary) {
       $('#dailySummary').innerHTML = `
         <div class="summary-title">📋 ${data.date || currentDate} 膳食计划</div>
@@ -122,14 +128,12 @@
       $('#dailySummary').style.display = 'none';
     }
 
-    // 各餐
-    renderMealSection('breakfastBody', data.breakfast);
-    renderMealSection('lunchBody', data.lunch);
-    renderMealSection('dinnerBody', data.dinner);
-    renderMealSection('fruitBody', data.fruit);
-    renderMealSection('snackBody', data.snack);
+    renderMealSection('breakfastBody', 'breakfast', data.breakfast);
+    renderMealSection('lunchBody', 'lunch', data.lunch);
+    renderMealSection('dinnerBody', 'dinner', data.dinner);
+    renderMealSection('fruitBody', 'fruit', data.fruit);
+    renderMealSection('snackBody', 'snack', data.snack);
 
-    // 小贴士
     if (data.tips) {
       $('#tipsBody').innerHTML = data.tips.map(t => `<p>• ${t}</p>`).join('');
       $('#tipsCard').style.display = 'block';
@@ -137,7 +141,6 @@
       $('#tipsCard').style.display = 'none';
     }
 
-    // 触发动画
     document.querySelectorAll('#mealsContainer .meal-card').forEach((card, i) => {
       card.style.animation = 'none';
       card.offsetHeight;
@@ -145,137 +148,112 @@
     });
   }
 
-  function renderMealSection(containerId, dishes) {
+  function renderMealSection(containerId, mealKey, dishes) {
     const container = $(`#${containerId}`);
     if (!dishes || dishes.length === 0) {
       container.innerHTML = '<p style="color:var(--text-light);font-size:0.85rem;">暂无数据</p>';
       return;
     }
 
-    container.innerHTML = dishes.map((dish, idx) => `
-      <div class="dish-item">
-        <div class="dish-emoji">${dish.emoji || '🍽️'}</div>
+    container.innerHTML = dishes.map((dish, idx) => {
+      const cur = getDish(currentDate, mealKey, idx, dish);
+      const hasAlts = dish.alternatives && dish.alternatives.length > 0;
+      const key = `${currentDate}|${mealKey}|${idx}`;
+      const isSwapped = (swapState[key] || 0) > 0;
+
+      return `
+      <div class="dish-item" id="dish-${mealKey}-${idx}">
+        <div class="dish-emoji">${cur.emoji || '🍽️'}</div>
         <div class="dish-info">
           <div class="dish-name">
-            ${dish.name}
-            ${(dish.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
+            ${cur.name}
+            ${(cur.tags || []).map(t => `<span class="dish-tag ${t.type}">${t.label}</span>`).join('')}
+            ${isSwapped ? '<span class="dish-tag swapped">已换</span>' : ''}
           </div>
-          ${dish.desc ? `<div class="dish-desc">${dish.desc}</div>` : ''}
-          ${dish.amount ? `<div class="dish-amount">👨‍👦 ${dish.amount}</div>` : ''}
+          ${cur.desc ? `<div class="dish-desc">${cur.desc}</div>` : ''}
+          ${cur.amount ? `<div class="dish-amount">👨‍👦 ${cur.amount}</div>` : ''}
         </div>
-        ${dish.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
-      </div>
-    `).join('');
+        <div class="dish-actions">
+          ${hasAlts ? `<button class="dish-swap-btn" data-meal="${mealKey}" data-idx="${idx}">换</button>` : ''}
+          ${cur.recipe ? `<button class="dish-recipe-btn" data-meal="${containerId}" data-idx="${idx}">做法</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ===== 换菜 =====
+  function swapDish(mealKey, idx) {
+    const data = menuCache[currentDate];
+    if (!data) return;
+    const dishes = data[mealKey];
+    if (!dishes || !dishes[idx]) return;
+    const dish = dishes[idx];
+    if (!dish.alternatives || dish.alternatives.length === 0) return;
+
+    const key = `${currentDate}|${mealKey}|${idx}`;
+    const cur = swapState[key] || 0;
+    swapState[key] = (cur + 1) % (dish.alternatives.length + 1);
+    saveSwapState();
+
+    const containerMap = { breakfast:'breakfastBody', lunch:'lunchBody', dinner:'dinnerBody', fruit:'fruitBody', snack:'snackBody' };
+    renderMealSection(containerMap[mealKey], mealKey, dishes);
+
+    const el = $(`#dish-${mealKey}-${idx}`);
+    if (el) { el.classList.add('dish-swap-anim'); setTimeout(() => el.classList.remove('dish-swap-anim'), 500); }
   }
 
   // ===== 做法弹窗 =====
   function showRecipe(containerId, idx) {
-    const keyMap = {
-      breakfastBody: 'breakfast',
-      lunchBody: 'lunch',
-      dinnerBody: 'dinner',
-      fruitBody: 'fruit',
-      snackBody: 'snack',
-    };
+    const keyMap = { breakfastBody:'breakfast', lunchBody:'lunch', dinnerBody:'dinner', fruitBody:'fruit', snackBody:'snack' };
     const mealKey = keyMap[containerId];
     const data = menuCache[currentDate];
     if (!data) return;
-
     const dishes = data[mealKey];
     if (!dishes || !dishes[idx]) return;
 
-    const dish = dishes[idx];
-    if (!dish.recipe) return;
+    const cur = getDish(currentDate, mealKey, idx, dishes[idx]);
+    if (!cur.recipe) return;
 
-    $('#recipeTitle').textContent = `📝 ${dish.name} - 做法`;
+    $('#recipeTitle').textContent = `📝 ${cur.name} - 做法`;
     $('#recipeBody').innerHTML = `
-      ${dish.recipe.ingredients ? `
-        <div class="recipe-section">
-          <h4>🥬 食材准备</h4>
-          <ul>${dish.recipe.ingredients.map(i => `<li>${i}</li>`).join('')}</ul>
-        </div>
-      ` : ''}
-      ${dish.recipe.steps ? `
-        <div class="recipe-section">
-          <h4>👩‍🍳 烹饪步骤</h4>
-          <ul class="recipe-steps">${dish.recipe.steps.map(s => `<li>${s}</li>`).join('')}</ul>
-        </div>
-      ` : ''}
-      ${dish.recipe.tips ? `
-        <div class="recipe-section">
-          <h4>💡 小窍门</h4>
-          <ul>${dish.recipe.tips.map(t => `<li>${t}</li>`).join('')}</ul>
-        </div>
-      ` : ''}
+      ${cur.recipe.ingredients ? `<div class="recipe-section"><h4>🥬 食材准备</h4><ul>${cur.recipe.ingredients.map(i => `<li>${i}</li>`).join('')}</ul></div>` : ''}
+      ${cur.recipe.steps ? `<div class="recipe-section"><h4>👩‍🍳 烹饪步骤</h4><ul class="recipe-steps">${cur.recipe.steps.map(s => `<li>${s}</li>`).join('')}</ul></div>` : ''}
+      ${cur.recipe.tips ? `<div class="recipe-section"><h4>💡 小窍门</h4><ul>${cur.recipe.tips.map(t => `<li>${t}</li>`).join('')}</ul></div>` : ''}
     `;
-
     $('#recipeModal').classList.add('show');
     document.body.style.overflow = 'hidden';
   }
 
-  function closeRecipeModal() {
-    $('#recipeModal').classList.remove('show');
-    document.body.style.overflow = '';
-  }
+  function closeRecipeModal() { $('#recipeModal').classList.remove('show'); document.body.style.overflow = ''; }
 
-  // ===== 历史回看 =====
-  function openHistory() {
-    $('#historyDate').value = currentDate;
-    $('#historyOverlay').classList.add('show');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeHistory() {
-    $('#historyOverlay').classList.remove('show');
-    document.body.style.overflow = '';
-  }
-
+  // ===== 历史 =====
+  function openHistory() { $('#historyDate').value = currentDate; $('#historyOverlay').classList.add('show'); document.body.style.overflow = 'hidden'; }
+  function closeHistory() { $('#historyOverlay').classList.remove('show'); document.body.style.overflow = ''; }
   function goHistory() {
     const val = $('#historyDate').value;
     if (!val) return;
     closeHistory();
-
     document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
     currentDate = val;
     loadMenu(val);
   }
 
-  // ===== 事件绑定 =====
+  // ===== 事件 =====
   function bindEvents() {
-    // 做法按钮（事件委托）
     $('#mealsContainer').addEventListener('click', (e) => {
-      const btn = e.target.closest('.dish-recipe-btn');
-      if (btn) {
-        showRecipe(btn.dataset.meal, parseInt(btn.dataset.idx));
-      }
+      const swap = e.target.closest('.dish-swap-btn');
+      if (swap) { swapDish(swap.dataset.meal, parseInt(swap.dataset.idx)); return; }
+      const recipe = e.target.closest('.dish-recipe-btn');
+      if (recipe) { showRecipe(recipe.dataset.meal, parseInt(recipe.dataset.idx)); }
     });
-
-    // 关闭做法弹窗
     $('#closeRecipe').addEventListener('click', closeRecipeModal);
-    $('#recipeModal').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) closeRecipeModal();
-    });
-
-    // 历史
+    $('#recipeModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeRecipeModal(); });
     $('#historyBtn').addEventListener('click', openHistory);
     $('#closeHistory').addEventListener('click', closeHistory);
     $('#historyGo').addEventListener('click', goHistory);
-    $('#historyOverlay').addEventListener('click', (e) => {
-      if (e.target === e.currentTarget) closeHistory();
-    });
-
-    // 回到今天
-    $('#backToday').addEventListener('click', () => {
-      currentDate = formatDate(today);
-      renderDateTabs();
-      loadMenu(currentDate);
-    });
+    $('#historyOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeHistory(); });
+    $('#backToday').addEventListener('click', () => { currentDate = formatDate(today); renderDateTabs(); loadMenu(currentDate); });
   }
 
-  // ===== 启动 =====
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
 })();
