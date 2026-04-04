@@ -214,25 +214,35 @@ def generate_menu(client: OpenAI, date_str: str, season_info: dict, recent_menus
                 model=model,
                 messages=[
                     {
-                    "role": "system",
-                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。",
+                    "role": "user",
+                    "content": "你是一位专业的家庭营养师和中国菜厨师。请严格按照要求的JSON格式输出菜谱数据，不要输出任何JSON以外的内容。\n\n" + prompt,
                 },
-                {"role": "user", "content": prompt},
             ],
-            temperature=0.8,
-            max_tokens=30000,
             )
 
-            # 检查空响应
+            # 兼容推理模型（如 DeepSeek-R1）：内容可能在 content 或 reasoning_content 中
             msg = response.choices[0].message if response.choices else None
-            if not msg or not msg.content:
-                print(f"  ERROR: AI returned empty response")
+            if not msg:
+                print(f"  ERROR: AI returned no message")
                 if attempt < max_retries:
                     time.sleep(10)
                     continue
                 return None
 
-            content = msg.content.strip()
+            content = msg.content
+            # 如果 content 为空，尝试从 reasoning_content 提取
+            if not content and hasattr(msg, 'reasoning_content') and msg.reasoning_content:
+                print(f"  INFO: Using reasoning_content (reasoning model detected)")
+                content = msg.reasoning_content
+
+            if not content:
+                print(f"  ERROR: AI returned empty content (finish_reason: {response.choices[0].finish_reason})")
+                if attempt < max_retries:
+                    time.sleep(10)
+                    continue
+                return None
+
+            content = content.strip()
 
             # 清理可能的 markdown 代码块标记
             if content.startswith("```"):
