@@ -39,6 +39,13 @@
   function init() {
     const season = getSeason(today.getMonth() + 1);
     $('#seasonTag').textContent = season.emoji + ' ' + season.name;
+
+    // 动态计算标题栏高度，让日期栏精确贴在下方
+    const header = $('.header');
+    if (header) {
+      document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+    }
+
     loadSwapState();
     renderDateTabs();
     bindEvents();

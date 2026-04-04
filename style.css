@@ -57,6 +57,9 @@ body {
   background: linear-gradient(135deg, var(--primary) 0%, #FF8F65 100%);
   color: white;
   padding: 20px 16px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 101;
 }
 
 .header-content {
@@ -88,7 +91,7 @@ body {
   align-items: center;
   gap: 8px;
   position: sticky;
-  top: 0;
+  top: var(--header-h, 68px);
   z-index: 100;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
