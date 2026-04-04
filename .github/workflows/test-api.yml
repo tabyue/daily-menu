@@ -40,8 +40,18 @@ jobs:
                   messages=[{"role": "user", "content": "Say hello in Chinese, just one sentence."}],
                   max_tokens=50,
               )
-              msg = resp.choices[0].message
-              print(f"SUCCESS! Response: {msg.content}")
+              print(f"Raw response type: {type(resp)}")
+              print(f"Choices count: {len(resp.choices) if resp.choices else 0}")
+              if resp.choices:
+                  c = resp.choices[0]
+                  print(f"Choice finish_reason: {c.finish_reason}")
+                  print(f"Message role: {c.message.role if c.message else 'N/A'}")
+                  print(f"Message content: [{c.message.content}]")
+                  print(f"Message content type: {type(c.message.content)}")
+                  if hasattr(c.message, 'reasoning_content'):
+                      print(f"Reasoning content: [{c.message.reasoning_content}]")
+              print(f"Usage: {resp.usage}")
+              print("SUCCESS!")
           except Exception as e:
-              print(f"FAILED! Error: {e}")
+              print(f"FAILED! Error: {type(e).__name__}: {e}")
           EOF
