@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title>每日家庭食谱</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍱</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <header class="header">
+    <div class="header-content">
+      <h1 class="logo">🍱 每日家庭食谱</h1>
+      <p class="subtitle" id="seasonTag">春季时令</p>
+    </div>
+  </header>
+
+  <!-- 日期选择器 -->
+  <nav class="date-nav">
+    <div class="date-tabs" id="dateTabs">
+      <!-- JS 动态生成 -->
+    </div>
+    <button class="history-btn" id="historyBtn" title="查看历史">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- 历史日期选择浮层 -->
+  <div class="history-overlay" id="historyOverlay">
+    <div class="history-panel">
+      <div class="history-header">
+        <h3>📅 查看历史菜谱</h3>
+        <button class="close-btn" id="closeHistory">&times;</button>
+      </div>
+      <input type="date" id="historyDate" class="history-date-input">
+      <button class="history-go-btn" id="historyGo">查看</button>
+      <p class="history-hint">选择日期查看当天的菜谱记录</p>
+    </div>
+  </div>
+
+  <!-- 主内容区 -->
+  <main class="main-content" id="mainContent">
+    <!-- 加载状态 -->
+    <div class="loading" id="loading">
+      <div class="loading-spinner"></div>
+      <p>正在加载今日美味...</p>
+    </div>
+
+    <!-- 无数据状态 -->
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">📭</div>
+      <p>该日期暂无菜谱数据</p>
+      <button class="back-today-btn" id="backToday">回到今天</button>
+    </div>
+
+    <!-- 菜谱卡片容器 -->
+    <div class="meals-container" id="mealsContainer" style="display:none">
+      <!-- 膳食总览 -->
+      <div class="daily-summary" id="dailySummary"></div>
+
+      <!-- 早餐 -->
+      <section class="meal-card" id="breakfast">
+        <div class="meal-header">
+          <span class="meal-icon">🌅</span>
+          <h2>早餐</h2>
+          <span class="meal-time">7:00 - 8:00</span>
+        </div>
+        <div class="meal-body" id="breakfastBody"></div>
+      </section>
+
+      <!-- 午餐 -->
+      <section class="meal-card" id="lunch">
+        <div class="meal-header">
+          <span class="meal-icon">☀️</span>
+          <h2>午餐</h2>
+          <span class="meal-time">11:30 - 12:30</span>
+        </div>
+        <div class="meal-body" id="lunchBody"></div>
+      </section>
+
+      <!-- 晚餐 -->
+      <section class="meal-card" id="dinner">
+        <div class="meal-header">
+          <span class="meal-icon">🌙</span>
+          <h2>晚餐</h2>
+          <span class="meal-time">18:00 - 19:00</span>
+        </div>
+        <div class="meal-body" id="dinnerBody"></div>
+      </section>
+
+      <!-- 水果 -->
+      <section class="meal-card fruit-card" id="fruit">
+        <div class="meal-header">
+          <span class="meal-icon">🍎</span>
+          <h2>水果</h2>
+          <span class="meal-time">餐间食用</span>
+        </div>
+        <div class="meal-body" id="fruitBody"></div>
+      </section>
+
+      <!-- 零食/加餐 -->
+      <section class="meal-card snack-card" id="snack">
+        <div class="meal-header">
+          <span class="meal-icon">🥜</span>
+          <h2>零食 · 加餐</h2>
+          <span class="meal-time">上午/下午茶</span>
+        </div>
+        <div class="meal-body" id="snackBody"></div>
+      </section>
+
+      <!-- 营养小贴士 -->
+      <section class="tips-card" id="tipsCard">
+        <div class="tips-header">💡 今日营养小贴士</div>
+        <div class="tips-body" id="tipsBody"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- 底部 -->
+  <footer class="footer">
+    <p>参考《中国居民膳食指南(2022)》及儿童膳食标准</p>
+    <p>📍 深圳 · 平日：妈妈+儿子 | 节假日：爸爸+妈妈+儿子</p>
+  </footer>
+
+  <!-- 做法弹窗 -->
+  <div class="recipe-modal" id="recipeModal">
+    <div class="recipe-modal-content">
+      <div class="recipe-modal-header">
+        <h3 id="recipeTitle"></h3>
+        <button class="close-btn" id="closeRecipe">&times;</button>
+      </div>
+      <div class="recipe-modal-body" id="recipeBody"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
