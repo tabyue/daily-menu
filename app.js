@@ -88,8 +88,10 @@
     document.querySelectorAll('.date-tab').forEach(tab => {
       tab.classList.toggle('active', tab.dataset.date === dateStr);
     });
+    updateHistoryBar();
     loadMenu(dateStr);
   }
+
 
   // ===== 数据加载 =====
   async function loadMenu(dateStr) {
@@ -226,6 +228,28 @@
 
   function closeRecipeModal() { $('#recipeModal').classList.remove('show'); document.body.style.overflow = ''; }
 
+  // ===== 历史日期提示条 =====
+  function isInTabRange(dateStr) {
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      if (formatDate(d) === dateStr) return true;
+    }
+    return false;
+  }
+
+  function updateHistoryBar() {
+    const bar = $('#historyBar');
+    if (isInTabRange(currentDate)) {
+      bar.style.display = 'none';
+    } else {
+      const d = new Date(currentDate + 'T00:00:00');
+      const label = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${WEEKDAYS[d.getDay()]}`;
+      $('#historyBarText').textContent = '📅 正在查看：' + label;
+      bar.style.display = 'flex';
+    }
+  }
+
   // ===== 历史 =====
   function openHistory() { $('#historyDate').value = currentDate; $('#historyOverlay').classList.add('show'); document.body.style.overflow = 'hidden'; }
   function closeHistory() { $('#historyOverlay').classList.remove('show'); document.body.style.overflow = ''; }
@@ -233,9 +257,20 @@
     const val = $('#historyDate').value;
     if (!val) return;
     closeHistory();
-    document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
     currentDate = val;
+    // 如果在tab范围内则高亮对应tab，否则取消所有高亮
+    document.querySelectorAll('.date-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.date === val);
+    });
+    updateHistoryBar();
     loadMenu(val);
+  }
+
+  function backToToday() {
+    currentDate = formatDate(today);
+    renderDateTabs();
+    updateHistoryBar();
+    loadMenu(currentDate);
   }
 
   // ===== 事件 =====
@@ -252,7 +287,8 @@
     $('#closeHistory').addEventListener('click', closeHistory);
     $('#historyGo').addEventListener('click', goHistory);
     $('#historyOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeHistory(); });
-    $('#backToday').addEventListener('click', () => { currentDate = formatDate(today); renderDateTabs(); loadMenu(currentDate); });
+    $('#backToday').addEventListener('click', backToToday);
+    $('#historyBarBack').addEventListener('click', backToToday);
   }
 
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }

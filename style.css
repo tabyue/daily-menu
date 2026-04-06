@@ -265,6 +265,46 @@ body {
   margin-top: 12px;
 }
 
+/* ===== 历史日期提示条 ===== */
+.history-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 0.85rem;
+  animation: fadeInDown 0.3s ease;
+}
+
+.history-bar-text {
+  font-weight: 600;
+  flex: 1;
+}
+
+.history-bar-back {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.history-bar-back:active {
+  background: rgba(255,255,255,0.3);
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===== 主内容区 ===== */
 .main-content {
   max-width: 600px;
@@ -759,6 +799,10 @@ body {
 
   .tips-body {
     color: #FFCC80;
+  }
+
+  .history-bar {
+    background: linear-gradient(135deg, #4A4A8A 0%, #5A3A7A 100%);
   }
 }
 
